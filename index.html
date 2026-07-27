@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Duration Estimator</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-border: #262b38;
+    --text: #e6e8ee;
+    --text-dim: #9aa1b2;
+    --accent: #6c8dff;
+    --accent-hover: #587bff;
+    --danger: #ff6b6b;
+    --danger-hover: #ff5252;
+    --input-bg: #1e222d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0 0 24px;
+  }
+  .task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .task-row input[type="text"] {
+    flex: 1;
+    min-width: 0;
+  }
+  .task-row input[type="number"] {
+    width: 48px;
+  }
+  .time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  input[type="text"], input[type="number"] {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    padding: 6px 4px;
+    outline: none;
+  }
+  input[type="text"]::placeholder {
+    color: var(--text-dim);
+  }
+  input[type="number"] {
+    text-align: right;
+  }
+  .unit-label {
+    color: var(--text-dim);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .remove-btn {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .remove-btn:hover {
+    background: rgba(255, 107, 107, 0.12);
+    color: var(--danger-hover);
+  }
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+  }
+  .add-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .add-btn:hover {
+    background: var(--accent-hover);
+  }
+  .total-box {
+    text-align: right;
+  }
+  .total-label {
+    color: var(--text-dim);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .total-value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .empty-msg {
+    color: var(--text-dim);
+    font-size: 14px;
+    text-align: center;
+    padding: 16px 0;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Task Duration Estimator</h1>
+    <p class="subtitle">Add tasks with an estimated time each, and see the total time needed.</p>
+
+    <div class="task-list" id="taskList"></div>
+
+    <div class="actions">
+      <button class="add-btn" id="addTaskBtn" type="button">+ Add Task</button>
+      <div class="total-box">
+        <div class="total-label">Total Estimated Time</div>
+        <div class="total-value" id="totalValue">0h 0m</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const taskList = document.getElementById('taskList');
+  const addTaskBtn = document.getElementById('addTaskBtn');
+  const totalValue = document.getElementById('totalValue');
+
+  let taskCount = 0;
+
+  function createTaskRow(name = '', hours = '', minutes = '') {
+    taskCount++;
+    const row = document.createElement('div');
+    row.className = 'task-row';
+    row.innerHTML = `
+      <input type="text" class="task-name" placeholder="Task name" value="${escapeHtml(name)}">
+      <div class="time-inputs">
+        <input type="number" class="task-hours" min="0" step="1" placeholder="0" value="${hours}">
+        <span class="unit-label">hrs</span>
+        <input type="number" class="task-minutes" min="0" step="1" placeholder="0" value="${minutes}">
+        <span class="unit-label">min</span>
+      </div>
+      <button class="remove-btn" type="button" title="Remove task">&times;</button>
+    `;
+
+    row.querySelector('.remove-btn').addEventListener('click', () => {
+      row.remove();
+      updateTotal();
+      renderEmptyState();
+    });
+
+    row.querySelector('.task-hours').addEventListener('input', updateTotal);
+    row.querySelector('.task-minutes').addEventListener('input', () => {
+      carryMinutes(row);
+      updateTotal();
+    });
+
+    return row;
+  }
+
+  function carryMinutes(row) {
+    const hoursInput = row.querySelector('.task-hours');
+    const minutesInput = row.querySelector('.task-minutes');
+    const m = parseFloat(minutesInput.value);
+    if (!isNaN(m) && m >= 60) {
+      const currentHours = parseFloat(hoursInput.value) || 0;
+      hoursInput.value = currentHours + Math.floor(m / 60);
+      minutesInput.value = m % 60;
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function addTask(name = '', hours = '', minutes = '') {
+    const row = createTaskRow(name, hours, minutes);
+    taskList.appendChild(row);
+    renderEmptyState();
+    updateTotal();
+    row.querySelector('.task-name').focus();
+  }
+
+  function updateTotal() {
+    const rows = taskList.querySelectorAll('.task-row');
+    let totalMinutes = 0;
+    rows.forEach(row => {
+      const h = parseFloat(row.querySelector('.task-hours').value);
+      const m = parseFloat(row.querySelector('.task-minutes').value);
+      if (!isNaN(h) && h > 0) totalMinutes += h * 60;
+      if (!isNaN(m) && m > 0) totalMinutes += m;
+    });
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = Math.round(totalMinutes % 60);
+    totalValue.textContent = `${hours}h ${mins}m`;
+  }
+
+  function renderEmptyState() {
+    const existingMsg = taskList.querySelector('.empty-msg');
+    if (taskList.children.length === 0) {
+      if (!existingMsg) {
+        const msg = document.createElement('div');
+        msg.className = 'empty-msg';
+        msg.textContent = 'No tasks yet — click "Add Task" to get started.';
+        taskList.appendChild(msg);
+      }
+    } else if (existingMsg) {
+      existingMsg.remove();
+    }
+  }
+
+  addTaskBtn.addEventListener('click', () => addTask());
+
+  // seed with a couple of example rows
+  addTask('Design mockups', 0, 45);
+  addTask('Implement feature', 2, 0);
+  renderEmptyState();
+  updateTotal();
+</script>
+</body>
+</html>
