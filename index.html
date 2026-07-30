@@ -158,7 +158,7 @@
       <button class="add-btn" id="addTaskBtn" type="button">+ Add Task</button>
       <div class="total-box">
         <div class="total-label">Total Estimated Time</div>
-        <div class="total-value" id="totalValue">0h 0m</div>
+        <div class="total-value" id="totalValue">0h 0m 0s</div>
       </div>
     </div>
   </div>
@@ -170,7 +170,7 @@
 
   let taskCount = 0;
 
-  function createTaskRow(name = '', hours = '', minutes = '') {
+  function createTaskRow(name = '', hours = '', minutes = '', seconds = '') {
     taskCount++;
     const row = document.createElement('div');
     row.className = 'task-row';
@@ -181,6 +181,8 @@
         <span class="unit-label">hrs</span>
         <input type="number" class="task-minutes" min="0" step="1" placeholder="0" value="${minutes}">
         <span class="unit-label">min</span>
+        <input type="number" class="task-seconds" min="0" step="1" placeholder="0" value="${seconds}">
+        <span class="unit-label">sec</span>
       </div>
       <button class="remove-btn" type="button" title="Remove task">&times;</button>
     `;
@@ -194,6 +196,10 @@
     row.querySelector('.task-hours').addEventListener('input', updateTotal);
     row.querySelector('.task-minutes').addEventListener('input', () => {
       carryMinutes(row);
+      updateTotal();
+    });
+    row.querySelector('.task-seconds').addEventListener('input', () => {
+      carrySeconds(row);
       updateTotal();
     });
 
@@ -211,14 +217,26 @@
     }
   }
 
+  function carrySeconds(row) {
+    const minutesInput = row.querySelector('.task-minutes');
+    const secondsInput = row.querySelector('.task-seconds');
+    const s = parseFloat(secondsInput.value);
+    if (!isNaN(s) && s >= 60) {
+      const currentMinutes = parseFloat(minutesInput.value) || 0;
+      minutesInput.value = currentMinutes + Math.floor(s / 60);
+      secondsInput.value = s % 60;
+      carryMinutes(row);
+    }
+  }
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
 
-  function addTask(name = '', hours = '', minutes = '') {
-    const row = createTaskRow(name, hours, minutes);
+  function addTask(name = '', hours = '', minutes = '', seconds = '') {
+    const row = createTaskRow(name, hours, minutes, seconds);
     taskList.appendChild(row);
     renderEmptyState();
     updateTotal();
@@ -227,16 +245,19 @@
 
   function updateTotal() {
     const rows = taskList.querySelectorAll('.task-row');
-    let totalMinutes = 0;
+    let totalSeconds = 0;
     rows.forEach(row => {
       const h = parseFloat(row.querySelector('.task-hours').value);
       const m = parseFloat(row.querySelector('.task-minutes').value);
-      if (!isNaN(h) && h > 0) totalMinutes += h * 60;
-      if (!isNaN(m) && m > 0) totalMinutes += m;
+      const s = parseFloat(row.querySelector('.task-seconds').value);
+      if (!isNaN(h) && h > 0) totalSeconds += h * 3600;
+      if (!isNaN(m) && m > 0) totalSeconds += m * 60;
+      if (!isNaN(s) && s > 0) totalSeconds += s;
     });
-    const hours = Math.floor(totalMinutes / 60);
-    const mins = Math.round(totalMinutes % 60);
-    totalValue.textContent = `${hours}h ${mins}m`;
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = Math.round(totalSeconds % 60);
+    totalValue.textContent = `${hours}h ${mins}m ${secs}s`;
   }
 
   function renderEmptyState() {
@@ -256,8 +277,8 @@
   addTaskBtn.addEventListener('click', () => addTask());
 
   // seed with a couple of example rows
-  addTask('Design mockups', 0, 45);
-  addTask('Implement feature', 2, 0);
+  addTask('Design mockups', 0, 45, 0);
+  addTask('Implement feature', 2, 0, 0);
   renderEmptyState();
   updateTotal();
 </script>
